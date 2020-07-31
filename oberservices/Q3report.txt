@@ -1,0 +1,98 @@
+Question 3
+
+Structures Used
+Riders Structure:
+The riders struct stores the rider number, what kind of cab_type , the max_wait_time, the ride_time
+of the cab and arrival_time to the app.
+
+Driver Structure:
+The driver structure stores the following details
+    int pno;
+    bool type; ///1 if cab is premier type, 0 if cab is pool type
+
+    bool waitstate;
+    bool onPrem;
+    bool onPool1;
+    bool onPool2;
+
+Struct servers:
+Servers store the status( 0 if not in use, 1 if in use).
+
+Riders
+The rider is initialized in the main function with its parameters and is then sent to the rider_f() function.
+In the rider_f function, the rider polls for cabs until time runs out which is checked using a time structure.
+
+while(current->maxwait > timer && !booked){
+        i=1;
+        for (; i <= cab_no && current->maxwait > timer; ++i) {
+            if (current->cabtype == d[i].type)
+            {
+
+                if(current->cabtype){
+                    if(d[i].waitstate){
+                        bookcab(current,&d[i],&booked);
+                        if(booked)  break;
+                    }
+                }else{
+                    if(d[i].onPool1 || d[i].waitstate){
+                        bookcab(current, &d[i], &booked);
+                        if (booked) break;
+                    }
+                }
+                pthread_mutex_unlock(&d[i].lock);
+            }
+            time(&time2);
+            timer=time2-time1;
+            if(current->maxwait > timer)    break;
+        }
+    }
+
+The cabs are safely accessed using mutexes.
+
+The cab is then booked in the bookcab function which checks the type of cab and changes the status of the cabs and
+the riders safely using mutex.
+
+if(current->cabtype){
+        pDriver->onPrem=1;
+        printf("Passenger %d is assigned driver %d for Premier ride\n",current->pno,pDriver->pno);
+        *booked=1;
+    }
+    else if(current->cabtype==0){
+        if(pDriver->onPool1){
+            pDriver->onPool2=1;
+            pDriver->onPool1=0;
+        } else{
+            pDriver->onPool1=1;
+            pDriver->onPool2=0;
+        }
+        printf("Passenger %d is assigned driver %d for Pool ride\n",current->pno,pDriver->pno);
+        *booked=1;
+    }
+    else{
+        *booked=0;
+    }
+
+If a cab is not allocated in a given time slot then the rider times out
+or else the rider rides in the cab.
+
+Drivers
+The drivers is a structure in the question and are not implemented as threads. They are used to only for rides.
+
+Servers
+Server threads are created once the rider has finished his journey if that server is not already in use.
+if(!s[i].in_use && (pthread_mutex_trylock(&s[i].server_lock)==0)){
+            s[i].in_use=true;
+            current->s_no=i;
+            pthread_create(&s[i].server_thread,NULL,accept_payment,current);
+            pthread_mutex_unlock(&s[i].server_lock);
+            break;
+}
+The server then processes the payment, sleeps and then completes the payment.
+void * accept_payment(void *arg) {
+    rider * current=(rider *) arg;
+    printf("Payment of rider %d is being processed \n",current->pno);
+    sleep(2);
+    printf("Payment of rider %d is completed \n",current->pno);
+    s[current->s_no].in_use=0;
+    return NULL;
+}
